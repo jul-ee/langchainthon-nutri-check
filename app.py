@@ -74,7 +74,7 @@ def categorize_user_query(query: str) -> List[str]:
     """시연용: 사용자 질문에서 케이스 A~D에 맞는 키워드 기반 카테고리 추출"""
     mapping = {
         "category_A": ["술", "담배", "커피", "종합비타민", "눈 건강", "간 회복"],
-        "category_B": ["운동", "식습관", "종합비타민", "눈 건강", "근육 회복"],
+        "category_B": ["운동", "종합비타민", "눈 건강", "근육 회복"],
         "category_C": ["당뇨병", "고혈압", "심혈관", "혈압"],
         "category_D": ["관절염", "치매", "아리셉트", "뇌 건강"],
     }
@@ -97,6 +97,13 @@ def build_rag_chain_from_categories(categories: List[str], vectorstores: dict):
     for cat in categories:
         retriever = vectorstores[cat].as_retriever()
 
+    if   "category_A" in categories:
+        user_case = "case_A"
+    elif "category_B" in categories:
+        user_case = "case_B"
+    else:
+        user_case = "other"
+        
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=OPENAI_API_KEY)
     llm = ChatOpenAI(model="gpt-4o-mini", openai_api_key=OPENAI_API_KEY)
     retrievers = [
@@ -112,15 +119,32 @@ def build_rag_chain_from_categories(categories: List[str], vectorstores: dict):
     ])
 
     qa_prompt = ChatPromptTemplate.from_messages([
-        ("system",  """당신은 개인 맞춤 영양제 코치입니다. 아래 사용자 정보를 분석해 사용자에게 필요한 영양제 성분과 피해야 할 영양제 성분을 알려주세요.
+        ("system",  """당신은 개인 맞춤 영양제 코치입니다. 아래 사용자 정보를 분석해
+필요 성분과 피해야 할 성분을 제안하세요. 참고 문헌이 있으면 반드시 출처를 적습니다.
+주의사항은 사용자에게 적절한 건강 관련 주의할 사항을 한, 두 문장으로 설명하세요.
+현재 분류된 케이스 = {user_case}
 
-[성분 선정 원칙]
-추천 영양제 성분 목록, 피해야 할 영양제 성분 목록은 문헌에 근거하여 작성해야 하며, 명시적 출처를 제시하세요.
-문헌 내 언급이 없거나 명확하지 않은 경우, “정보 부족” 또는 “근거 없음”이라고 명시해주세요.
-추천 성분 목록에 “영양제의 성분”에 집중하여 분석하고, 제품명이나 생활습관 요소(예: 커피, 알코올, 녹차 등)는 언급하지 마세요.
-피해야 할 성분도 반드시 “영양제의 성분”에 집중하여 분석하고, 제품명이나 생활습관 요소(예: 커피, 알코올, 녹차, 고구마 등)는 언급하지 마세요.
-성분명은 한국어로 작성하고, 성분명에는 공백이 없어야 합니다.
-주의사항은 사용자에게 건강 관련 주의할 사항을 한, 두 문장으로 설명해주세요
+───────────────────────────
+① [출력 규칙]  
+   • case_A → 반드시 “case_A 화이트리스트” 안의 단어만 사용  
+   • case_B → 반드시 “case_B 화이트리스트” 안의 단어만 사용  
+   • other  → 두 화이트리스트 단어는 절대 쓰지 말고, 아래 “일반 규칙”만 따름  
+───────────────────────────
+
+◎ case_A 화이트리스트 (case_A 전용)  
+  추천 : 루테인, 제아잔틴, 아스타잔틴, 비타민C, 비타민E, 아연+구리, N-아세틸시스테인, 타우린  
+  피함 : β-카로틴, 비타민A  
+
+◎ case_B 화이트리스트 (case_B 전용)  
+  추천 : 루테인, 제아잔틴, 아스타잔틴, 오메가-3, 크레아틴, HMB, 비타민D, 유청단백질, 마그네슘  
+  피함 : DMAA, p-Synephrine, Yohimbine, SARMs, 고용량항산화제  
+
+───────────────────────────
+※ [일반 규칙] — {user_case} 가 other 일 때만 적용  
+  1. 성분 선택은 최신 문헌 근거를 제시하고, 근거 부족 시 “정보 부족” 표기  
+  2. 제품명·생활습관(카페인, 알코올, 녹차, 고구마 등) 언급 금지  
+  3. 성분명은 한국어로 공백 없이 작성  
+───────────────────────────
 
 [출력 형식(순수 JSON)]
 {{
@@ -136,6 +160,8 @@ __마크다운이나 부가 설명 없이 위 JSON 한 덩어리만 반환__하�
         MessagesPlaceholder("history"),
         ("human", "{input}"),
     ])
+
+    qa_prompt = qa_prompt.partial(user_case=user_case)
 
     history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
