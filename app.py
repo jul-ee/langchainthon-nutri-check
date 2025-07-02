@@ -76,7 +76,7 @@ def categorize_user_query(query: str) -> List[str]:
         "category_A": ["술", "담배", "커피", "종합비타민", "눈 건강", "간 회복"],
         "category_B": ["운동", "식습관", "종합비타민", "눈 건강", "근육 회복"],
         "category_C": ["당뇨병", "고혈압", "심혈관", "혈압"],
-        "category_D": ["관절염", "치매", "뇌 건강", "뇌 건강기능식품"],
+        "category_D": ["관절염", "치매", "아리셉트", "뇌 건강"],
     }
 
     query_lower = query.lower()
@@ -115,16 +115,18 @@ def build_rag_chain_from_categories(categories: List[str], vectorstores: dict):
         ("system",  """당신은 개인 맞춤 영양제 코치입니다. 아래 사용자 정보를 분석해 사용자에게 필요한 영양제 성분과 피해야 할 영양제 성분을 알려주세요.
 
 [성분 선정 원칙]
-추천 성분 목록, 피해야 할 성분 목록은 문헌에 근거하여 작성해야 하며, 명시적 출처를 제시하세요.
+추천 영양제 성분 목록, 피해야 할 영양제 성분 목록은 문헌에 근거하여 작성해야 하며, 명시적 출처를 제시하세요.
 문헌 내 언급이 없거나 명확하지 않은 경우, “정보 부족” 또는 “근거 없음”이라고 명시해주세요.
-반드시 “영양제"의 성분에 집중하여 분석하고, 제품명이나 생활습관 요소(예: 커피, 알코올, 녹차 등)는 언급하지 마세요.
-성분명은 한국어로 뽑아주세요.
+추천 성분 목록에 “영양제의 성분”에 집중하여 분석하고, 제품명이나 생활습관 요소(예: 커피, 알코올, 녹차 등)는 언급하지 마세요.
+피해야 할 성분도 반드시 “영양제의 성분”에 집중하여 분석하고, 제품명이나 생활습관 요소(예: 커피, 알코올, 녹차, 고구마 등)는 언급하지 마세요.
+성분명은 한국어로 작성하고, 성분명에는 공백이 없어야 합니다.
+주의사항은 사용자에게 건강 관련 주의할 사항을 한, 두 문장으로 설명해주세요
 
 [출력 형식(순수 JSON)]
 {{
   "recommended": ["성분1", "성분2", ...],
   "avoid":       ["성분A", "성분B", ...],
-  "cautions":    {{"성분1": "주의사항 ...", ...}},
+  "cautions":    ["주의사항 ...", ...],
   "sources":     ["출처1", "출처2", ...]
 }}
 
@@ -241,7 +243,7 @@ if submitted:
             sources = answer_json.get("sources", [])
 
             # 구조화 출력
-            st.subheader("📌 분석 결과 요약")
+            st.subheader("📍사용자 건강 기반 분석")
 
             with st.expander("✅ 추천 성분"):
                 if recommended:
@@ -257,8 +259,13 @@ if submitted:
 
             with st.expander("⚠️ 주의사항"):
                 if cautions:
-                    for substance, caution_text in cautions.items():
-                        st.markdown(f"**{substance}**: {caution_text}")
+                    if isinstance(cautions, list):
+                            for line in cautions:
+                                st.markdown(f"- {line}")
+                    elif isinstance(cautions, str):
+                            st.markdown(f"- {cautions}")
+                    else:
+                            st.write("주의사항 형식을 확인할 수 없습니다.")
                 else:
                     st.write("특별한 주의사항 없음.")
 
@@ -277,7 +284,7 @@ if submitted:
                 #   Streamlit 화면에 결과 표시
                 # ──────────────────────────────
                 if product_docs:
-                    st.subheader("💊 영양제 Check!")
+                    st.subheader("💡 맞춤 영양제 추천")
 
                     for idx, doc in enumerate(product_docs, 1):
                         name = doc.metadata.get("product", f"제품 {idx}")

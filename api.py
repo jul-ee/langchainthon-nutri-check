@@ -8,6 +8,7 @@ from langchain.docstore.document import Document
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 import time
+import re
 
 # 2. 공공데이터 API에서 건강기능식품 수집 (XML 파싱)
 def fetch_health_product_data(max_pages=5):
@@ -113,7 +114,7 @@ def search_products(ingredient_query, avoid=None, top_k: int = 5):
     print(f"[DEBUG] avoid            = {avoid}")
 
     # ── [B] 후보군 검색 ───────────────────────────────────
-    candidate_docs = db.similarity_search(ingredient_query, k=max(1, top_k * 2))
+    candidate_docs = db.similarity_search(ingredient_query, k=max(1, top_k * 4))
     print(f"[DEBUG] candidate_docs   = {len(candidate_docs)}개")
 
     # ── [C] ‘avoid’ 성분 필터 ─────────────────────────────
