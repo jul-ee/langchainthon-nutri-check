@@ -1,4 +1,4 @@
-# api10000.py
+# api.py
 # 1. 라이브러리 임포트
 import os
 import requests
@@ -11,35 +11,31 @@ import time
 import re
 
 # 2. 공공데이터 API에서 건강기능식품 수집 (XML 파싱)
-def fetch_health_product_data(start_page=1, num_pages=1, delay=0.2):
+def fetch_health_product_data(max_pages=5):
     url = "http://apis.data.go.kr/1471000/HtfsInfoService03/getHtfsItem01"
     service_key = st.secrets["PUBLIC_API_KEY"]
 
     all_items = []
-    for page in range(start_page, start_page + num_pages):
+    for page in range(1, max_pages + 1):
         params = {
             'serviceKey': service_key,
             'pageNo': page,
             'numOfRows': 100,
             'type': 'xml'
         }
-        try:
-            response = requests.get(url, params=params, verify=False)
-            root = ET.fromstring(response.content)
-            items = root.findall('.//item')
-            if not items:
-                print(f"🚫 {page}페이지 데이터 없음, 중단합니다.")
-                break
-            for item in items:
-                row = {child.tag: child.text for child in item}
-                all_items.append(row)
-            
-            time.sleep(delay)
-        except Exception as e:
-            print(f"⚠️ {page}페이지 에러: {e}")
-            continue
-    print(f"✅ {start_page}~{start_page + num_pages - 1} 페이지 수집 완료! 총 {len(all_items)}개")
+        response = requests.get(url, params=params, verify=False)
+        root = ET.fromstring(response.content)
+        items = root.findall('.//item')
+        if not items:
+            break
+        for item in items:
+            row = {child.tag: child.text for child in item}
+            all_items.append(row)
+        print(f"{page}페이지 완료, 누적: {len(all_items)}개")
+        time.sleep(0.2)
     return all_items
+
+items = fetch_health_product_data(max_pages=5)  # 500건
 
 # 3. 각 item → LangChain Document로 변환
 def item_to_document(item):
@@ -52,47 +48,53 @@ def item_to_document(item):
 """
     return Document(page_content=text, metadata={"product": item.get("PRDUCT", "")})
 
-# 4. 벡터 임베딩 및 FAISS 벡터 DB 초기화
+documents = [item_to_document(item) for item in items]
+print(f"변환된 문서 수: {len(documents)}")
+
+# 4. 벡터 임베딩 및 FAISS 저장소 생성 (메모리 내 테스트)
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-embedding = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    openai_api_key=os.environ["OPENAI_API_KEY"]
-)
+embedding = OpenAIEmbeddings()
+db = FAISS.from_documents(documents, embedding)
+print("벡터 저장소 생성 완료!")
 
-# all_documents = []
-db = None  # 최초 FAISS 인스턴스는 첫 500개로 생성
+# 5. 추가 데이터 수집 (6~10페이지, 총 500건)
+additional_items = fetch_health_product_data(max_pages=5)  # 단순히 다시 호출하면 1~5페이지가 또 나옵니다.
 
-# 안전하게 문서 100개씩 나눠서 FAISS에 추가 - 임베딩 토큰 초과 에러 발생
-def add_documents_in_chunks(db, documents, chunk_size=100):
-    for i in range(0, len(documents), chunk_size):
-        chunk = documents[i:i + chunk_size]
-        db.add_documents(chunk)
+# 페이지 번호 겹치지 않게 start_page 지정:
+def fetch_additional_data(start_page=6, max_pages=5):
+    url = "http://apis.data.go.kr/1471000/HtfsInfoService03/getHtfsItem01"
+    service_key = st.secrets["PUBLIC_API_KEY"]
 
-# 5. 전체 10000개 데이터를 500개 단위로 수집, 임베딩
-TOTAL_PAGES = 100
-BATCH_SIZE = 500  # → 500개씩 임베딩
-PAGES_PER_BATCH = BATCH_SIZE // 100  # 5페이지씩 = 500개
+    all_items = []
+    for page in range(start_page, start_page + max_pages):
+        params = {
+            'serviceKey': service_key,
+            'pageNo': page,
+            'numOfRows': 100,
+            'type': 'xml'
+        }
+        response = requests.get(url, params=params, verify=False)
+        root = ET.fromstring(response.content)
+        items = root.findall('.//item')
+        if not items:
+            break
+        for item in items:
+            row = {child.tag: child.text for child in item}
+            all_items.append(row)
+        print(f"추가 {page}페이지 완료, 누적: {len(all_items)}개")
+        time.sleep(0.2)
+    return all_items
 
-for i in range(0, TOTAL_PAGES, PAGES_PER_BATCH):
-    start_page = i + 1
-    print(f"\n📦 Batch {i // PAGES_PER_BATCH + 1} (페이지 {start_page}~{start_page + PAGES_PER_BATCH - 1}) 수집 중...")
-    
-    items = fetch_health_product_data(start_page=start_page, num_pages=PAGES_PER_BATCH)
-    documents = [item_to_document(item) for item in items]
+# 호출
+additional_items = fetch_additional_data(start_page=6, max_pages=5)  # 6~10페이지 (500건)
 
-    if not documents:
-        print("❌ 문서 없음 → 루프 종료")
-        break
+# 6. 문서 변환
+additional_documents = [item_to_document(item) for item in additional_items]
 
-    if db is None:
-        db = FAISS.from_documents(documents, embedding)
-        print(f"🧠 초기 벡터 저장소 생성! (문서 수: {len(documents)})")
-    else:
-        add_documents_in_chunks(db, documents, chunk_size=100)
-        print(f"➕ 벡터 저장소에 추가 완료! 누적 문서 수: {len(db.docstore._dict)}")
+# 8. 벡터 DB에 추가
+db.add_documents(additional_documents)
+print(f"벡터 저장소에 추가 완료! 전체 문서 수: {len(db.docstore._dict)}")
 
-db.save_local("./faiss_index/db")
-print(f"\n✅ 전체 벡터 DB 생성 완료! 총 문서 수: {len(db.docstore._dict)}개")
 
 def search_products(ingredient_query, avoid=None, top_k: int = 5):
     """

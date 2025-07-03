@@ -5,7 +5,7 @@
 import os
 import json
 import streamlit as st
-from api import search_products
+from api_test import search_products
 from typing import List
 
 from langchain_community.document_loaders import PyPDFLoader
