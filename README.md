@@ -21,7 +21,7 @@
 
 > [데이터 출처]<br>
 >
-> **제품 정보**: &nbsp;[식품의약품안전처_건강기능식품정보](https://www.data.go.kr/iim/api/selectAPIAcountView.do) 공공데이터 API  
+> **제품 정보**: &nbsp;[식품의약품안전처_건강기능식품정보](https://www.data.go.kr/data/15056760/openapi.do) 공공데이터 API  
 > **학술 근거**: &nbsp;RAG 지식베이스로 사용한 논문·가이드라인 46편  
 
 <br>
@@ -48,7 +48,7 @@
 | 손다혜 (팀장) | 고주리 | 김현민 | 채승희 |
 | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------------------: | :-----------------------------------------------------------: |
 | [@dahye4036](https://github.com/dahye4036)  | [@jul-ee](https://github.com/jul-ee) | [@meanstrel](https://github.com/meanstrel) | [@shchae12](https://github.com/shchae12) |
-| ✓ PM<br>✓ 아이디어 기획<br>✓ 기술 조사 | ✓ 프롬프트 엔지니어링<br>✓ 1차 RAG 설계<br>✓ 성능 고도화 | ✓ 학술 논문 조사<br>✓ 문서 정제<br>✓ 시나리오 기반 테스트 | ✓ 공공데이터 파이프라인 구축<br>✓ 2차 RAG 설계<br>✓ 벡터 DB 구축 |
+| ⸰ PM<br>⸰ 아이디어 기획<br>⸰ 기술 조사 | ⸰ 프롬프트 엔지니어링<br>⸰ 1차 RAG 설계<br>⸰ 응답 정밀도 개선 | ⸰ 학술 논문 조사<br>⸰ 문서 정제<br>⸰ 시나리오 기반 테스트 | ⸰ 공공데이터 파이프라인 구축<br>⸰ 2차 RAG 설계<br>⸰ 벡터 DB 구축 |
 
 </div>
 
@@ -168,18 +168,20 @@
 │
 ├── 📁 data/                       # PDF 임베딩 전처리 및 저장
 │   └── 📁 supplement_knowledge/
-│       ├── 📄 case_A
-│       ├── 📄 case_B
-│       ├── 📄 case_C
-│       └── 📄 case_D
+│       ├── 📁 case_A
+│       ├── 📁 case_B
+│       ├── 📁 case_C
+│       └── 📁 case_D
 │
 ├── 📁 docs/                       
-│   └── 📄 REFERENCES.md           # RAG 지식베이스 논문 PDF 출서 명시
+│   └── 📄 REFERENCES.md           # RAG 학술 문헌 출처 명시
 │
-├── 📄 api.py                      # 공공데이터 API 호출 (기존 버전: 1,000건)
-├── 📄 api10000.py                 # 공공데이터 API 호출 (최종 버전: 10,000건)
-├── 📄 app.py                      # Streamlit 앱 실행 파일 (기존 버전)
-├── 📄 app10000.py                 # Streamlit 앱 최종 실행 파일 (공공데이터 10,000건 기반)
+├── 📁 legacy/                     
+│   ├── 📄 api_test.py             # 초기 테스트용 공공데이터 API 호출 (1,000건)
+│   └── 📄 app_test.py             # 초기 테스트용 Streamlit 앱 실행 파일
+│
+├── 📄 api_final.py                # 최종 공공데이터 API 호출 (10,000건)
+├── 📄 app_final.py                # 최종 Streamlit 앱 실행 파일
 │
 ├── 📄 requirements.txt            # Python 패키지 명시
 │
